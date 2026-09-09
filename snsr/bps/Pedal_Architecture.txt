@@ -1,0 +1,45 @@
+SOFTWARE ARCHITECTURE
+
+                 +-------------------------------+
+                 |       Vehicle application     |
+                 | torque / drive request layer  |
+                 +---------------+---------------+
+                                 |
+                           demand_pct
+                                 |
+                 +---------------v---------------+
+                 |          Pedal_App            |
+                 |  1 ms scheduling / API / safe|
+                 +---------------+---------------+
+                                 |
+                 +---------------v---------------+
+                 |       PedalSent + Diag        |
+                 | scaling / plausibility / TO   |
+                 | CRC / range / stale / latch  |
+                 +---------------+---------------+
+                                 |
+                 +---------------v---------------+
+                 |       SENT frame decoder      |
+                 | sync / status / data / CRC    |
+                 +---------------+---------------+
+                                 |
+                 +---------------v---------------+
+                 |            SENT HAL           |
+                 | TC377 or SPC58NN backend      |
+                 +---------------+---------------+
+                                 |
+                 +---------------v---------------+
+                 | MCU native SENT peripheral    |
+                 +---------------+---------------+
+
+Recommended diagnostics:
+1. Frame timeout
+2. CRC error
+3. Sync/period error
+4. Raw range error
+5. Dual-channel plausibility error
+6. Stuck-at value / rate-of-change error
+7. Sensor status nibble error
+8. Supply diagnostic if available
+9. Internal software watchdog / alive counter
+10. Latched safe reaction after qualified debounce

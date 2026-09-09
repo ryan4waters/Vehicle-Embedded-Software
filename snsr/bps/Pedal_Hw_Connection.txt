@@ -1,0 +1,46 @@
+REFERENCE HARDWARE CONNECTION TOPOLOGY
+
+HELLA dual-SENT accelerator pedal
+    |
+    | 5V sensor supply
+    +---------------------> protected 5V sensor supply
+    |
+    | GND
+    +---------------------> ECU sensor ground
+    |
+    | SENT_A
+    +----[series R]----+----[ESD/TVS]----> MCU SENT_RX_A
+                       |
+                    optional
+                 Schmitt/buffer
+    |
+    | SENT_B
+    +----[series R]----+----[ESD/TVS]----> MCU SENT_RX_B
+                       |
+                    optional
+                 Schmitt/buffer
+
+Recommended board-level blocks:
+5V ECU rail
+  -> load switch / current-limited sensor supply
+  -> local decoupling at pedal connector
+  -> HELLA pedal
+
+Each SENT line:
+pedal output
+ -> small series resistor
+ -> low-capacitance automotive ESD protection
+ -> optional RC/Schmitt input stage
+ -> MCU SENT input
+
+Design rules:
+- Keep SENT signal return referenced to the same sensor ground.
+- Do not put a large capacitor directly on SENT; it can distort edge timing.
+- Use the MCU's native SENT peripheral whenever available.
+- Verify whether the exact HELLA output is push-pull/open-drain and whether an
+  external pull-up is required. Do not assume this from a generic SENT design.
+- Confirm MCU pad voltage domain. If the MCU input is not 5-V tolerant, use a
+  qualified automotive level translator.
+- Add supply reverse-polarity/short protection and local bulk + 100 nF decoupling.
+- Connector pin numbers and exact protection values are intentionally left as
+  project-specific because HELLA pedal variants are configurable.
