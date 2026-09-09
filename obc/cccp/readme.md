@@ -1876,3 +1876,167 @@ CC_Sense.c
 而且可以进一步把 **“CP 的 PWM 输出”和“车辆 OBC 的 CP 输入”两个方向都讲清楚**：对于 OBC 本身，通常是**EV 侧接收/解码 EVSE 的 CP**；如果是在开发充电桩/EVSE，则相反是 MCU 通过 TIM/PWM **产生 1 kHz CP**。GB/T 18487.1 对供电设备产生的 PWM 占空比与最大供电电流之间也规定了映射关系。([Scribd](https://www.scribd.com/document/766330125/GB-T-18487-1-2023-电动汽车传导充电系统-第1部分-通用要求?utm_source=chatgpt.com))
 
 另外，若 OBC 是**国标 AC OBC**，建议把 GB/T 27930-2023 从“CCCP核心依据”里拿出来单独放到 **DC充电通信/跨产品架构参考**；它目前是现行标准，规定的是非车载充电机 SECC 与车辆 EVCC 基于 CAN 的数字通信。([Open Standard SAMR](https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=6ECF725CD2BCCA2819082279F6B2E243&utm_source=chatgpt.com))
+
+## 三十五、OBC CCCP Portable Software Package
+
+这是一个面向量产 OBC AC 充电软件架构的 CCCP（CP/CC）可移植软件包。
+
+目标：
+
+1. 公共算法层完全不直接访问 MCU 寄存器。
+2. TC377、TI F29P32x、SPC58NN 只实现统一的 `CCCP_Platform` 接口。
+3. CP PWM 频率/Duty 使用硬件 capture 数据计算。
+4. CP 电压、CC 电阻使用 ADC/板级驱动获得。
+5. 公共层完成 CP/CC 解码、去抖、状态机、唤醒请求、电流/功率限值。
+6. PDU 层只消费公共 CCCP 状态，不关心 MCU 型号。
+
+### 目录
+
+```text
+OBC_CCCP_Portable_Package/
+├── common/
+│   ├── include/
+│   │   ├── CCCP_Types.h
+│   │   ├── CCCP_Cfg.h
+│   │   ├── CCCP_Platform.h
+│   │   └── CCCP.h
+│   └── src/
+│       ├── CCCP.c
+│       ├── CCCP_Measure.c
+│       ├── CCCP_Decode.c
+│       ├── CCCP_State.c
+│       └── CCCP_Limit.c
+├── app/
+│   ├── OBC_CCCP_App.c
+│   ├── OBC_PDU.c
+│   └── OBC_PowerLimit.c
+├── port/
+│   ├── tc377/
+│   │   ├── CCCP_Platform_tc377.h
+│   │   └── CCCP_Platform_tc377.c
+│   ├── f29p32x/
+│   │   ├── CCCP_Platform_f29p32x.h
+│   │   └── CCCP_Platform_f29p32x.c
+│   └── spc58nn/
+│       ├── CCCP_Platform_spc58nn.h
+│       └── CCCP_Platform_spc58nn.c
+└── test/
+    ├── mock/
+    │   └── CCCP_Platform_mock.c
+    └── test_cccp.c
+```
+
+### 核心数据流
+
+```text
+             CP pin
+               │
+       ┌───────┴────────┐
+       │                │
+      ADC          TIM/eCAP/eMIOS
+       │                │
+ CP voltage        period/high time
+       │                │
+       └───────┬────────┘
+               ▼
+         CCCP_Measure
+               ▼
+         CCCP_Decode
+          │          │
+          ▼          ▼
+       CP State    EVSE Imax
+          │          │
+          └────┬─────┘
+               ▼
+          CCCP_State
+               │
+       ┌───────┼─────────┐
+       ▼       ▼         ▼
+    Wakeup    PDU    Current Limit
+                         │
+                         ▼
+                    Power Limit
+                         │
+                         ▼
+                      PFC/LLC
+```
+
+### 任务建议
+
+- Capture ISR / DMA callback：边沿事件，更新双缓冲 capture。
+- `CCCP_1msTask()`：采样快照、计算 CP/CC 原始量。
+- `CCCP_10msTask()`：解码、状态确认、限流。
+- PDU 10 ms：消费 `CCCP_GetStatus()`。
+- PFC/LLC 控制周期：消费已经计算好的功率/电流上限。
+
+### CP PWM
+
+对普通 PWM 区域：
+
+- 10%~85%：`Imax = Duty(%) × 0.6 A`
+- 85%~90%：`Imax = (Duty(%) - 64) × 2.5 A`
+- 约 5%：标记为数字通信请求，不直接当作 3 A。
+
+具体产品阈值、去抖时间、CC 表、最大电流、功率限制必须由 OEM/国标/硬件误差共同标定。
+
+### MCU 适配原则
+
+公共层只依赖：
+
+```c
+CCCP_Platform_ReadCpVoltage();
+CCCP_Platform_ReadCcResistance();
+CCCP_Platform_GetCpPwmCapture();
+CCCP_Platform_RequestWakeup();
+CCCP_Platform_SetChargePowerEnable();
+```
+
+#### TC377
+
+推荐：
+
+- GTM TIM：CP PWM 输入捕获
+- EVADC：CP/CC 模拟量
+- SCU/GPIO/PMIC：唤醒
+
+Infineon 的 TC37x 文档和培训资料明确支持 GTM TIM 输入捕获/滤波配置；具体 channel/pin 仍必须根据实际 TC377 封装和 PCB 选择。
+
+#### TI F29P32x
+
+推荐：
+
+- eCAP 或项目选定 capture 外设：CP PWM
+- ADC：CP/CC
+- GPIO/XINT：唤醒
+
+使用 TI C2000Ware/设备 DriverLib 时，把所有 DriverLib 调用限制在 `port/f29p32x`。
+
+#### SPC58NN
+
+推荐：
+
+- 项目使用的 timer input-capture/MCAL：CP PWM
+- ADC/MCAL：CP/CC
+- GPIO/IRQ/PMIC：唤醒
+
+SPC58NN 的具体 timer instance、channel 和 MCAL API 随具体 derivative、MCAL package 和项目配置变化，因此全部放在 `port/spc58nn`。
+
+### 注意
+
+本包是“完整的软件架构 + 可编译公共算法 + 三套芯片适配骨架”，不是针对某块 PCB 的最终寄存器工程。
+
+要成为可直接烧录的量产工程，还必须填入：
+
+- CP/CC 实际 ADC channel
+- 分压/滤波参数
+- timer/capture channel
+- pinmux
+- interrupt vector
+- MCU 时钟
+- 实际 wakeup 电路
+- PMIC 接口
+- OEM 状态机
+- BMS CAN 接口
+- PFC/LLC enable 接口
+- DTC/DEM 接口
+- ASIL/safety mechanism
