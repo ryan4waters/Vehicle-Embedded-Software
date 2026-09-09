@@ -1,0 +1,29 @@
+NORMAL TX
+SWC -> RTE -> COM -> PduR -> CanIf -> CanDrv -> TC377 MCMCAN -> TJA1145 -> CAN BUS
+
+NORMAL RX
+CAN BUS -> TJA1145 -> TC377 MCMCAN -> CanDrv -> CanIf
+         -> COM path: PduR -> COM -> RTE -> SWC
+         -> NM path : CanNm -> Nm -> ComM/BswM
+         -> DIAG path: PduR -> CanTp -> Dcm
+
+KL15 WAKE
+KL15 -> TJA1145/local wake or TC377 wake input -> EcuM
+     -> startup -> Can/CanIf/CanSM/ComM/Nm/Com
+     -> FULL_COMMUNICATION
+
+CAN/NM WAKE
+CAN bus activity -> TJA1145 wake detection -> TC377 wake
+-> EcuM -> startup -> Can/CanIf/CanSM/ComM/Nm/Com
+Only after MCU/CAN controller is operational does AUTOSAR CanNm
+process an NM PDU.
+
+BUS-OFF
+MCMCAN BusOff -> CanDrv -> CanIf_ControllerBusOff -> CanSM
+-> recovery -> controller restart -> FULL_COMMUNICATION
+
+SLEEP
+Application release -> ComM NO_COM -> CanSM NO_COM
+-> CanIf controller stop -> TJA1145 sleep/standby
+-> EcuM sleep -> MCU low power
+TJA1145 remains configured for the required wake source.

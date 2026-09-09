@@ -1,0 +1,39 @@
+AUTOSAR CLASSIC REFERENCE ARCHITECTURE
+
+Application SWC
+       |
+      RTE
+       |
+ +-----+----------------------+
+ |                            |
+COM                         Dcm
+ |                            |
+PduR                         CanTp
+ |                            |
+ +-------------+--------------+
+               |
+             CanIf
+               |
+             CanDrv
+               |
+          TC377 MCMCAN
+               |
+           TJA1145
+               |
+            CAN BUS
+
+Management plane:
+EcuM <-> BswM <-> ComM <-> CanSM <-> CanIf
+                 |
+                 +-------- Nm <-> CanNm <-> CanIf
+
+Wakeup plane:
+KL15 / CAN BUS
+      |
+   TJA1145
+      |
+TC377 wakeup hardware
+      |
+    EcuM
+      |
+communication startup
