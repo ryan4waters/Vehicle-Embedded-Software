@@ -86,13 +86,13 @@ Reset
 
 # 二、方案 A：TC377 + TLF35584
 
-![TLF35584+TC3xx](.\TLF35584+TC3xx.jpg)
+![TLF35584+TC3xx](./TLF35584+TC3xx.jpg)
 
-![TC3xxFusa](.\TC3xxFusa.jpg)
+![TC3xxFusa](./TC3xxFusa.jpg)
 
-![WWDtriggering](.\WWDtriggering.jpg)
+![WWDtriggering](./WWDtriggering.jpg)
 
-![TLF35584+TC264](.\TLF35584+TC264.jpg)
+![TLF35584+TC264](./TLF35584+TC264.jpg)
 
 Infineon 官方对 TC3xx + TLF35584 的推荐安全连接实际上已经非常接近这个架构：SPI、FSP/ERR、ESR1/INT、WDI、PORST/ROT 等均用于 MCU 与 PMIC 的安全交互。
 
