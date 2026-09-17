@@ -10,7 +10,6 @@
 
 下面按照 OBC/DCDC 软件的实际方式来梳理。
 
-------
 
 ## 1. 统一的 Port 分类框架
 
@@ -31,7 +30,6 @@
 
 因为真正做 PCB 时，最容易出问题的往往不是普通 GPIO，而是：**这个脚在 MCU 还没执行第一条 App 代码之前是什么状态？**
 
-------
 
 ## 2. “复用”到底是什么
 
@@ -83,9 +81,9 @@ GPIO / PWM / CAN / SPI / UART
 
 > **“这个 Pad 支持哪些 ALT Function，以及复位/Boot状态下是什么功能？”**
 
-------
+## 3. TI F29P32
 
-## 3. TI F29P32：Port/GPIO 体系
+### Port/GPIO 体系
 
 以 **F29P329SM-Q1** 为例。
 
@@ -105,9 +103,7 @@ GPIO / PWM / CAN / SPI / UART
 
 所以它非常适合：OBC PFC / DCDC / 功率控制 DSP 架构。
 
-------
-
-## 4. F29P32 的 GPIO / PWM / 复用关系
+### GPIO / PWM / 复用关系
 
 可以理解为：
 
@@ -163,9 +159,7 @@ MOSFET
 
 所以这里的 GPIO0~GPIO9 **并不是普通 GPIO 输出**，而是在 App 初始化后交给 ePWM 外设控制。
 
-------
-
-## 5. F29P32 特别重要：XRSn
+### XRSn
 
 F29P32 最重要的系统级引脚之一：**XRSn**
 
@@ -203,9 +197,7 @@ XRSn
 
 所以 XRSn 属于：**不能当普通 GPIO 设计的系统级引脚。**
 
-------
-
-## 6. F29P32 的 Boot Mode 特别重要
+### Boot Mode
 
 F29P32 使用 Boot ROM。
 
@@ -249,9 +241,7 @@ GPIO84 → 外部 Power Control
 
 就必须检查外部电路是否会改变 Boot Mode。
 
-------
-
-## 7. F29P32 的 Boot 时序
+### Boot 时序
 
 TI 给出的启动时序非常值得注意：
 
@@ -291,9 +281,7 @@ Boot Pin
 
 因为：**软件还没有运行的时候，软件 Pull-up 根本还没开始配置。**
 
-------
-
-## 8. F29P32 的内部上下拉
+### 内部上下拉
 
 F29P32 数据手册说明：
 
@@ -320,9 +308,9 @@ App
  └── 用户 PinMux / GPIO / PWM
 ```
 
-------
+## 4. SPC58NN
 
-## 9. SPC58NN：SIUL2
+### SIUL2
 
 SPC58NN 的 Port 核心是：**SIUL2**
 
@@ -354,11 +342,7 @@ GPDI
 
 这一套。
 
-------
-
-## 10. SPC58NN 的 MSCR / IMCR
-
-这是理解 SPC58NN Port 的关键。
+SPC58NN 的 MSCR / IMCR是理解 SPC58NN Port 的关键：
 
 ### MSCR
 
@@ -374,8 +358,6 @@ Pull-up / Pull-down
 Alternate function
 Safe mode behavior
 ```
-
-------
 
 ### IMCR
 
@@ -406,13 +388,11 @@ PAD
        └── Input routing
 ```
 
-------
-
-## 11. SPC58NN 的 GPIO 分类
+### GPIO 分类
 
 可以把 SPC58NN 的 Pad 分成：
 
-### A. 普通 GPIO
+#### A. 普通 GPIO
 
 ```text
 GPIO input
@@ -429,9 +409,7 @@ LED
 Power_EN
 ```
 
-------
-
-### B. 外设输出
+#### B. 外设输出
 
 ```text
 CAN_TX
@@ -441,9 +419,7 @@ PWM
 Ethernet
 ```
 
-------
-
-### C. 外设输入
+#### C. 外设输入
 
 ```text
 CAN_RX
@@ -453,9 +429,7 @@ External Interrupt
 Timer Capture
 ```
 
-------
-
-### D. ADC
+#### D. ADC
 
 ```text
 Analog Input
@@ -463,9 +437,7 @@ Analog Input
 
 这些不要简单按照 GPIO 使用。
 
-------
-
-## 12. SPC58NN 的一个非常重要特性：Reset 后大部分 Pad 是 Hi-Z
+### 重要特性：Reset 后大部分 Pad 是 Hi-Z
 
 ST 的硬件设计指南明确说明：
 
@@ -524,9 +496,7 @@ Reset → EN = 0
 App初始化 → EN = 1
 ```
 
-------
-
-## 13. SPC58NN 的 SAFE Mode 要特别注意
+### SAFE Mode 要特别注意
 
 SPC58NN 的 SIUL2 还有：
 
@@ -594,9 +564,7 @@ Shutdown
 
 整个生命周期。
 
-------
-
-## 14. SPC58NN 的 PORST
+### PORST
 
 SPC58NN 有：
 
@@ -623,9 +591,7 @@ ST 数据手册明确指出 PORST 是双向 Reset Pad，并建议外部上拉，
 
 因此：**PORST 是 PCB 级别必须认真设计的引脚。**
 
-------
-
-## 15. SPC58NN 的 Boot
+### Boot
 
 SPC58NN 和 F29P32 的 Boot 思路不完全一样。
 
@@ -654,9 +620,9 @@ Flash Application
 
 尤其要保证：CAN/LIN Boot 所需要的 Pad、收发器和外部电路在启动期间不会被错误拉死。
 
-------
+## 5. TC377
 
-## 16. TC377：Port 架构
+### Port 架构
 
 TC377 是三者里面最特殊的。
 
@@ -702,9 +668,7 @@ Wake
 
 等功能。
 
-------
-
-## 17. TC377 最大的特殊点：HWCFG
+### HWCFG
 
 这是特别值得单独拿出来的。
 
@@ -732,9 +696,7 @@ HWCFG[6]
 
 Infineon 官方启动文档对此有明确说明。([Infineon Documentation](https://documentation.infineon.com/aurixtc3xx/docs/nyb1710229964455?utm_source=chatgpt.com))
 
-------
-
-## 18. TC377 HWCFG1/2：电源相关
+#### TC377 HWCFG1/2：电源相关
 
 这是做汽车电源 MCU 时必须特别关注的。
 
@@ -763,9 +725,7 @@ P14.5
 
 它们首先属于：**Power Configuration Pin**
 
-------
-
-## 19. TC377 HWCFG3/4/5：Boot
+#### TC377 HWCFG3/4/5：Boot
 
 最关键的是：
 
@@ -791,9 +751,7 @@ Flash BMI
 
 如果使用 Flash BMI，则 HWCFG4/5 在相应条件下可以不参与 Boot Mode 选择。([Infineon Documentation](https://documentation.infineon.com/aurixtc3xx/docs/nyb1710229964455?utm_source=chatgpt.com))
 
-------
-
-## 20. TC377 Generic Bootstrap
+#### TC377 Generic Bootstrap
 
 TC377 一个非常有意思的设计是：
 
@@ -823,9 +781,9 @@ P14.0/P14.1
 
 在调试/量产/Boot 环境非常重要。
 
-------
+#### TC377 HWCFG6
 
-## 21. TC377 HWCFG6：这是“悬空/上下拉”最典型的例子
+这是“悬空/上下拉”最典型的例子
 
 ```text
 P14.4 = HWCFG6
@@ -868,9 +826,7 @@ GPIO 默认 Input + Pull-up
 
 这个设计对于汽车 MCU 非常关键。
 
-------
-
-## 22. TC377 HWCFG 并不是一直重新采样
+#### TC377 HWCFG 并不是一直重新采样
 
 这个特别容易搞错。
 
@@ -912,9 +868,7 @@ HWCFG1/2/3/6不会简单重新改变
 
 这也是为什么：**TC377 的 HWCFG Pin PCB 上一定要有确定电平。**不能悬空碰运气。
 
-------
-
-## 23. TC377 的 P32.0/P32.1 也要特别注意
+### TC377 的 P32.0/P32.1 也要特别注意
 
 做 TC377 项目时如果碰到：
 
@@ -938,9 +892,8 @@ Infineon 对 TC377 的一个实际答复中明确指出，如果外部提供 Cor
 
 不能只看 Datasheet Pinmux 表。
 
-------
 
-## 24. 三颗 MCU 的“特殊 Pin”对比
+## 6. 三颗 MCU 的“特殊 Pin”对比
 
 建议以后直接放到项目 MCU Design Guide 里的表。
 
@@ -960,9 +913,8 @@ Infineon 对 TC377 的一个实际答复中明确指出，如果外部提供 Cor
 | Reset后Pad配置 | GPIO默认状态      | Hi-Z等         | **HWCFG6决定**  |
 | 安全状态       | Safety/Secure机制 | **SAFE**       | Safety/Safe/SMU |
 
-------
 
-## 25. 三颗 MCU 的“必须外部电路”的引脚
+## 7. 三颗 MCU 的“必须外部电路”的引脚
 
 必须 PCB 级确定这些不要依赖软件。
 
@@ -978,7 +930,6 @@ Power Pins
 
 其中 Boot Mode 必须保证上电采样期间稳定。([Texas Instruments](https://www.ti.com/lit/ds/symlink/f29h859tu-q1.pdf?utm_source=chatgpt.com))
 
-------
 
 #### SPC58NN
 
@@ -992,7 +943,6 @@ Boot/BAF相关通信
 
 PORST 推荐外部上拉，ST 给出的典型建议为 4.7 kΩ。([STMicroelectronics](https://www.st.com/resource/en/datasheet/spc58nn84c3.pdf?utm_source=chatgpt.com))
 
-------
 
 #### TC377
 
@@ -1016,9 +966,8 @@ JTAG/DAP
 
 其中 HWCFG 必须在规定启动时序内得到确定电平。([Infineon Documentation](https://documentation.infineon.com/aurixtc3xx/docs/nyb1710229964455?utm_source=chatgpt.com))
 
-------
 
-## 26. 哪些 GPIO 最好增加外部上下拉？
+## 8. 哪些 GPIO 最好增加外部上下拉？
 
 这个可以给一个非常实用的设计规则。
 
@@ -1056,7 +1005,6 @@ APP正常 = ON
 FAULT = OFF
 ```
 
-------
 
 ### 第二类：状态输入
 
@@ -1105,7 +1053,6 @@ Fault_OD
   3.3V
 ```
 
-------
 
 ### 第三类：Boot Configuration
 
@@ -1145,9 +1092,8 @@ MCU内部软件还没运行
 Boot Mode已经需要被确定
 ```
 
-------
 
-## 27. 推挽/开漏是什么？
+## 9. 推挽/开漏是什么？
 
 这个在汽车 CAN、Fault、Reset、Wake 等场景非常常见。
 
@@ -1223,9 +1169,8 @@ HIGH
 
 所以：**Open Drain 本质上只有“主动拉低”，高电平依赖外部上拉。**
 
-------
 
-## 28. 推挽 vs 开漏
+## 10. 推挽 vs 开漏
 
 | 特性         | Push-Pull      | Open-Drain                |
 | ------------ | -------------- | ------------------------- |
@@ -1251,9 +1196,8 @@ CANH/CANL
 
 完成。
 
-------
 
-## 29. Boot 和 App 阶段到底有什么区别？
+## 11. Boot 和 App 阶段到底有什么区别？
 
 这是 Port 初始化最核心的问题。
 
@@ -1284,9 +1228,9 @@ CANH/CANL
                    Shutdown
 ```
 
-------
+## 12. Reset 阶段
 
-## 30. Reset 阶段：软件还没控制 GPIO
+软件还没控制 GPIO
 
 例如 DCDC：GPIO_GATE_EN
 
@@ -1310,9 +1254,8 @@ MCU GPIO
 
 那么必须靠：外部 Pull-down来保证。
 
-------
 
-## 31. Boot 阶段
+## 13. Boot 阶段
 
 Boot ROM 开始执行。
 
@@ -1366,9 +1309,8 @@ App初始化完成
 GPIO_EN = 1
 ```
 
-------
 
-## 32. PWM 是最危险的一类 Port
+## 14. PWM 是最危险的一类 Port
 
 做：
 
@@ -1433,9 +1375,8 @@ EPWM5_B
 
 应该把：**PWM初始化** 和 **Gate Enable** 严格分开。
 
-------
 
-## 33. App 初始化阶段应该怎么做？
+## 15. App 初始化阶段应该怎么做？
 
 推荐以后所有三个 MCU 都按照：
 
@@ -1461,9 +1402,8 @@ MCU_Init()
 
 其中： Port_Safe_Init() 应该优先。
 
-------
 
-## 34. 建议把 Port 分成 4 个软件初始化阶段
+## 16. 建议把 Port 分成 4 个软件初始化阶段
 
 这非常适合现在 OBC 多芯片架构。
 
@@ -1482,7 +1422,6 @@ Gate Driver default
 
 确保：安全
 
-------
 
 ### Stage 1：Boot Port
 
@@ -1500,7 +1439,6 @@ Download
 Recovery
 ```
 
-------
 
 ### Stage 2：Safe Port
 
@@ -1521,7 +1459,6 @@ PWM_EN = 0
 RELAY_EN = 0
 ```
 
-------
 
 ### Stage 3：Application Port
 
@@ -1544,9 +1481,8 @@ PFC_EN = 1
 PWM_ENABLE = 1
 ```
 
-------
 
-## 35. 三颗 MCU 最应该关注的“启动/复位/下电”引脚
+## 17. 三颗 MCU 最应该关注的“启动/复位/下电”引脚
 
 这是最终重点表。
 
@@ -1573,9 +1509,8 @@ PWM_ENABLE = 1
 
 TC377 的 HWCFG 组合尤其需要在 PCB 设计阶段确定。([Infineon Documentation](https://documentation.infineon.com/aurixtc3xx/docs/nyb1710229964455?utm_source=chatgpt.com))
 
-------
 
-## 36. 从“车载 OBC”角度重新分类
+## 18. 从“车载 OBC”角度重新分类
 
 如果不按照 MCU 厂商分类，而按照实际做 OBC 的软件功能分类，反而建议建立下面这张表：
 
@@ -1597,9 +1532,8 @@ TC377 的 HWCFG 组合尤其需要在 PCB 设计阶段确定。([Infineon Docume
 | Debug       | JTAG       | JTAG/Nexus    | DAP/JTAG   |
 | Safety      | C29 Safety | FCCU/Safe     | SMU/Safety |
 
-------
 
-## 37. 最后给一个非常重要的工程判断原则
+## 19. 最后给一个非常重要的工程判断原则
 
 以后拿到任何一颗 MCU 的 Datasheet，不要先开始配置 GPIO。
 
@@ -1649,9 +1583,8 @@ Power Stage
 
 这个顺序比“先配置 GPIO，再配置外设”重要得多。
 
-------
 
-## 38. 最值得建立的是一张“MCU Pin Matrix”
+## 20. 最值得建立的是一张“MCU Pin Matrix”
 
 建议下一步直接把这三个 MCU 做成一张**项目级 Excel/Pin Matrix**，而不是继续停留在概念层。
 
