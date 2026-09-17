@@ -1,12 +1,11 @@
 # TC377 + TJA1145：AUTOSAR Classic CAN 通信栈与唤醒/休眠参考实现
 
-> 目标：以 Infineon AURIX TC377 + NXP TJA1145 为例，说明 AUTOSAR Classic 下 CAN 通信栈、NM、CanSM、ComM、EcuM、BswM、CanIf、PduR、CanTp、Com、RTE/应用之间如何协作，并给出 KL15 本地唤醒、CAN/NM 总线唤醒、正常通信、异常通信和休眠下电的参考 C 代码。
->
-> **重要**：下面代码是“架构/接口级参考实现”，不是某一家 MCAL/BSW 厂商的可直接量产包。TC377 的 MCMCAN、QSPI/SPI、ERU/PORT、SMU、MCAL API，以及 TJA1145 的寄存器配置必须根据实际 AUTOSAR Vendor Package、芯片变体和硬件原理图替换。
+目标：以 Infineon AURIX TC377 + NXP TJA1145 为例，说明 AUTOSAR Classic 下 CAN 通信栈、NM、CanSM、ComM、EcuM、BswM、CanIf、PduR、CanTp、Com、RTE/应用之间如何协作，并给出 KL15 本地唤醒、CAN/NM 总线唤醒、正常通信、异常通信和休眠下电的参考 C 代码。
 
----
+**重要**：下面代码是“架构/接口级参考实现”，不是某一家 MCAL/BSW 厂商的可直接量产包。TC377 的 MCMCAN、QSPI/SPI、ERU/PORT、SMU、MCAL API，以及 TJA1145 的寄存器配置必须根据实际 AUTOSAR Vendor Package、芯片变体和硬件原理图替换。
 
-## 1. 先建立一个最重要的认识：CAN 栈不是一个“CAN驱动”
+
+## 1. CAN 栈不是一个“CAN驱动”
 
 AUTOSAR Classic 把应用和硬件解耦为：
 
@@ -36,9 +35,7 @@ CanNm / Nm / CanSM / ComM / BswM
 
 AUTOSAR Classic 顶层架构本身就是 Application / RTE / BSW 三层；通信相关功能属于 BSW 的通信服务、ECU abstraction、MCAL 等层次。参考 AUTOSAR 官方 Classic Platform 说明。
 
----
-
-# 2. TC377 + TJA1145 的硬件边界
+## 2. TC377 + TJA1145 的硬件边界
 
 典型连接：
 
@@ -75,11 +72,9 @@ AUTOSAR Classic 顶层架构本身就是 Application / RTE / BSW 三层；通信
 
 TJA1145 支持低功耗 Sleep/Standby、Local Wake、Remote CAN Wake、Selective Wake、SPI 控制和唤醒源识别；因此它适合“ECU 仍挂在蓄电池上，但 MCU/CAN 控制器大部分关闭”的车载节点。
 
----
+## 3. “KL15唤醒”和“NM报文唤醒”最容易混淆的地方
 
-# 3. “KL15唤醒”和“NM报文唤醒”最容易混淆的地方
-
-## 3.1 KL15 唤醒
+### 3.1 KL15 唤醒
 
 KL15 是本地硬件/车辆电源状态事件。
 
@@ -117,13 +112,11 @@ CAN_FULL_COMMUNICATION
 
 这里真正让 MCU 从低功耗状态出来的是“本地唤醒事件”，而不是 CAN 上的一帧 Nm。
 
----
-
-## 3.2 CAN/NM 总线唤醒
+### 3.2 CAN/NM 总线唤醒
 
 更准确地说，“NM 报文唤醒”通常包含两个层次：
 
-### 层次 A：物理层/收发器唤醒
+#### 层次 A：物理层/收发器唤醒
 
 CAN 总线活动首先被 TJA1145 感知。
 
@@ -150,13 +143,11 @@ TJA1145 可以通过 CAN wake-up pattern / selective wake 机制产生远程唤�
            EcuM
 ```
 
-所以：
-
-> **MCU 还没有起来之前，AUTOSAR 的 CanNm/ComM/CanSM 并没有“接收 Nm 报文”。**
+所以： **MCU 还没有起来之前，AUTOSAR 的 CanNm/ComM/CanSM 并没有“接收 Nm 报文”。**
 
 这是理解 CAN Wake-up 最关键的一点。
 
-### 层次 B：MCU起来之后
+#### 层次 B：MCU起来之后
 
 MCU 启动通信栈以后，CAN 控制器开始正常接收 CAN Frame。
 
@@ -173,9 +164,7 @@ CAN Driver
 
 等 AUTOSAR 层面的 NM 状态机行为。
 
----
-
-# 4. KL15唤醒 vs CAN/NM唤醒：相同点
+## 4. KL15唤醒 vs CAN/NM唤醒：相同点
 
 二者最终都需要把 ECU 从：
 
@@ -222,9 +211,7 @@ Com / PduR / CanTp
 Application
 ```
 
----
-
-# 5. KL15唤醒 vs CAN/NM唤醒：差异
+## 5. KL15唤醒 vs CAN/NM唤醒：差异
 
 | 项目 | KL15唤醒 | CAN/NM总线唤醒 |
 |---|---|---|
@@ -238,9 +225,8 @@ Application
 | 后续FULL_COM | 相同 | 相同 |
 | 差异主要在哪里 | Wakeup Source | Wakeup Source |
 
----
 
-# 6. 推荐的状态机
+## 6. 推荐的状态机
 
 ```text
                  +-------------------+
@@ -283,9 +269,8 @@ Application
                      FULL COM
 ```
 
----
 
-# 7. 正常通信：发送路径
+## 7. 正常通信：发送路径
 
 例如 Application 要发送：
 
@@ -343,9 +328,8 @@ CanIf
 
 CanIf 再把逻辑 PDU 转成 CAN Driver 的 HTH/Controller 相关操作。
 
----
 
-# 8. 正常通信：接收路径
+## 8. 正常通信：接收路径
 
 例如收到：
 
@@ -380,9 +364,7 @@ CanIf_RxIndication()
              Application SWC
 ```
 
-这里一定要注意：
-
-> CanIf 是“CAN控制器与上层PDU世界之间的适配层”，并不是所有接收帧都一定经过 COM。
+这里一定要注意：CanIf 是“CAN控制器与上层PDU世界之间的适配层”，并不是所有接收帧都一定经过 COM。
 
 例如：
 
@@ -390,9 +372,8 @@ CanIf_RxIndication()
 - Diagnostic PDU -> CanIf -> PduR -> CanTp/Dcm
 - Application CAN signal -> CanIf -> PduR -> Com
 
----
 
-# 9. NM报文的典型路径
+## 9. NM报文的典型路径
 
 ```text
 CAN Frame
@@ -434,9 +415,8 @@ NM报文 != 普通COM报文
 
 不要把 Nm PDU 当作普通应用信号处理。
 
----
 
-# 10. CanSM 的作用
+## 10. CanSM 的作用
 
 CanSM 不负责解析 CAN Frame。
 
@@ -481,9 +461,8 @@ CanSM
 FULL COMM
 ```
 
----
 
-# 11. ComM 的作用
+## 11. ComM 的作用
 
 ComM 是“通信需求管理器”。
 
@@ -519,9 +498,8 @@ CanIf_SetControllerMode(CAN_TRCV_NORMAL);
 
 量产 AUTOSAR 架构中应该由通信状态管理链完成。
 
----
 
-# 12. BswM 的作用
+## 12. BswM 的作用
 
 BswM 是规则仲裁器。
 
@@ -547,9 +525,8 @@ THEN
     switch TJA1145 to sleep
 ```
 
----
 
-# 13. EcuM 的作用
+## 13. EcuM 的作用
 
 EcuM 负责 ECU 的生命周期。
 
@@ -579,11 +556,10 @@ STARTUP
 
 EcuM 是“系统电源状态”的核心管理者。
 
----
 
-# 14. 正常工况完整调用链
+## 14. 正常工况完整调用链
 
-## 14.1 启动
+### 14.1 启动
 
 ```text
 Reset
@@ -624,9 +600,8 @@ RTE
 Application
 ```
 
----
 
-# 15. 正常发送
+### 14.2 正常发送
 
 ```text
 App
@@ -656,9 +631,8 @@ TJA1145
 BUS
 ```
 
----
 
-# 16. 正常接收
+### 14.3 正常接收
 
 ```text
 BUS
@@ -694,9 +668,9 @@ CanIf_RxIndication
                Dcm
 ```
 
----
 
-# 17. 异常工况一：CAN Bus-Off
+## 15. 异常工况完整调用链
+### 15.1 CAN Bus-Off
 
 典型过程：
 
@@ -737,9 +711,8 @@ RECOVERY
 FULL_COM
 ```
 
----
 
-# 18. 异常工况二：TJA1145异常
+### 15.2 TJA1145异常
 
 TJA1145 可通过 SPI 状态寄存器提供：
 
@@ -768,13 +741,7 @@ CanTrcv / CanSM / Diag
    +--> BswM
 ```
 
-这里建议：
-
-```text
-TJA1145 driver
-```
-
-只做：
+这里建议：TJA1145 driver 只做：
 
 - SPI register access
 - mode setting
@@ -783,9 +750,8 @@ TJA1145 driver
 
 不要把业务逻辑塞进 TJA1145 driver。
 
----
 
-# 19. 异常工况三：NM超时
+### 15.3 NM超时
 
 ```text
 CanNm
@@ -809,9 +775,8 @@ BswM
 
 具体是否产生 DTC、进入降级状态，要按照项目 AUTOSAR 配置和 OEM 需求确定。
 
----
 
-# 20. 休眠下电流程
+## 16. 休眠下电流程
 
 这是实际项目最容易出问题的地方。
 
@@ -848,9 +813,7 @@ TJA1145 Sleep / Standby
 MCU low power
 ```
 
-注意：
-
-> “关闭 CAN 栈”不是简单调用一个 Can_DeInit()。
+注意：“关闭 CAN 栈”不是简单调用一个 Can_DeInit()。
 
 实际应该是：
 
@@ -864,17 +827,11 @@ MCU low power
  -> EcuM进入Sleep
 ```
 
----
-
-# 21. 为什么 TJA1145 要最后睡？
+## 17. 为什么 TJA1145 要最后睡？
 
 因为它负责唤醒。
 
-如果：
-
-```text
-TJA1145 Sleep
-```
+如果：TJA1145 Sleep
 
 但 MCU 也直接彻底关闭唤醒路径，就会出现：
 
@@ -908,11 +865,9 @@ EcuM
 
 TJA1145 官方资料明确支持 local wake 和 remote CAN wake，以及 wake source recognition。
 
----
+## 18. 推荐的软件分层
 
-# 22. 推荐的软件分层
-
-本项目建议：
+项目建议：
 
 ```text
 Application/
@@ -953,9 +908,7 @@ MCU/
     Tc377_WakeupHw.c
 ```
 
----
-
-# 23. 代码设计原则
+## 19. 代码设计原则
 
 这套参考代码刻意分成：
 
@@ -996,9 +949,7 @@ EcuM
 
 只替换底层 adapter。
 
----
-
-# 24. 编译/移植注意
+## 20. 编译/移植注意
 
 实际工程中通常不会自己实现完整的：
 
@@ -1026,45 +977,23 @@ EcuM
 6. 异常处理
 7. Sleep/Wakeup sequencing
 
----
+## 21. 关键工程结论
 
-# 25. 关键工程结论
+### 21.1 结论1
 
-### 结论1
+KL15 唤醒：KL15 -> TJA1145/MCU wake -> EcuM -> CAN Stack
 
-KL15 唤醒：
+### 21.2 结论2
 
-```text
-KL15 -> TJA1145/MCU wake -> EcuM -> CAN Stack
-```
+CAN/NM 唤醒：CAN Bus -> TJA1145 wake detection -> MCU -> EcuM -> CAN Stack
 
-### 结论2
+### 21.3 结论3
 
-CAN/NM 唤醒：
+MCU 未启动前：CanNm / ComM / CanSM / Com 都不能真正“接收一帧NM报文”。
 
-```text
-CAN Bus -> TJA1145 wake detection -> MCU -> EcuM -> CAN Stack
-```
+唤醒首先发生在：TJA1145 + MCU Wakeup Hardware 层。
 
-### 结论3
-
-MCU 未启动前：
-
-```text
-CanNm / ComM / CanSM / Com
-```
-
-都不能真正“接收一帧NM报文”。
-
-唤醒首先发生在：
-
-```text
-TJA1145 + MCU Wakeup Hardware
-```
-
-层。
-
-### 结论4
+### 21.4 结论4
 
 MCU起来后，两条路径最终汇合：
 
@@ -1082,13 +1011,9 @@ CanIf
 Can
 ```
 
-### 结论5
+### 21.5 结论5
 
-休眠不是：
-
-```text
-Can_DeInit();
-```
+休眠不是：Can_DeInit();
 
 而是一个完整的：
 
@@ -1103,7 +1028,6 @@ Application communication release
 
 状态转换过程。
 
----
 
 # 26. 官方资料
 
@@ -1119,27 +1043,26 @@ https://www.nxp.com/products/interfaces/can-transceivers/can-with-flexible-data-
 Infineon AURIX TC3xx documentation：
 https://documentation.infineon.com/aurixtc3xx/
 
----
 
 # 27. 最终工程视角
 
-把整个系统压缩成一句话：
+把整个系统压缩成一张表：
 
-```text
-TJA1145负责“物理总线和低功耗唤醒”
-TC377 CAN负责“CAN控制器”
-CanIf负责“CAN硬件与PDU世界适配”
-PduR负责“PDU路由”
-Com负责“应用Signal/I-PDU”
-CanTp负责“分段诊断/传输”
-CanNm负责“CAN网络管理”
-Nm负责“统一网络管理抽象”
-CanSM负责“CAN通信状态”
-ComM负责“通信需求”
-BswM负责“规则仲裁”
-EcuM负责“ECU生命周期和唤醒/休眠”
-RTE负责“Application与BSW/SWC之间的接口”
-DEM负责“诊断事件”
-```
+| module    | function                       |
+| --------- | ------------------------------ |
+| TJA1145   | 物理总线和低功耗唤醒           |
+| TC377 CAN | CAN控制器                      |
+| CanIf     | CAN硬件与PDU世界适配           |
+| PduR      | PDU路由                        |
+| Com       | 应用Signal/I-PDU               |
+| CanTp     | 分段诊断/传输                  |
+| CanNm     | CAN网络管理                    |
+| Nm        | 统一网络管理抽象               |
+| CanSM     | CAN通信状态                    |
+| ComM      | 通信需求                       |
+| BswM      | 规则仲裁                       |
+| EcuM      | ECU生命周期和唤醒/休眠         |
+| RTE       | Application与BSW/SWC之间的接口 |
+| DEM       | 诊断事件                       |
 
 这套关系掌握后，再看 DaVinci Configurator / EB tresos / ISOLAR 生成的 RTE/BSW 配置，就不会只是在“追函数调用”，而是能够从系统状态机角度理解为什么某个 API 在那个时刻被调用。
