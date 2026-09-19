@@ -4,15 +4,9 @@ int main(void)
 {
     PDU_FSM_Init();
 
-    for (;;)
-    {
-        /* 1ms scheduler */
-        PDU_FSM_1msTask();
-
-        /*
-         * Actual project scheduler should call PDU_FSM_10msTask()
-         * every 10 ms.
-         */
+    for (;;) {
+        /* Call from the project's scheduler, e.g. 1 ms task. */
+        PDU_FSM_Run();
     }
 
     return 0;

@@ -1,124 +1,97 @@
 #include "PDU_FSM_Example.h"
 
+static PDU_FSM_Context_t g_ctx;
 static FSM_t g_fsm;
-static PDU_Context_t g_ctx;
 
-static void Init_Entry(void *ctx) { (void)ctx; }
-static void Init_Exit(void *ctx)  { (void)ctx; }
+static void Entry_Init(void *c) { (void)c; }
+static void Exit_Init(void *c)  { (void)c; }
+static void Do_Init(void *c)    { ((PDU_FSM_Context_t *)c)->runCounter++; }
 
-static void Sleep_Entry(void *ctx) { (void)ctx; }
-static void Sleep_Exit(void *ctx)  { (void)ctx; }
+static void Entry_Standby(void *c) { (void)c; }
+static void Exit_Standby(void *c)  { (void)c; }
+static void Do_Standby(void *c)    { ((PDU_FSM_Context_t *)c)->runCounter++; }
 
-static void Standby_Entry(void *ctx) { (void)ctx; }
-static void Standby_Exit(void *ctx)  { (void)ctx; }
+static void Entry_Charging(void *c) { (void)c; }
+static void Exit_Charging(void *c)  { (void)c; }
+static void Do_Charging(void *c)    { ((PDU_FSM_Context_t *)c)->runCounter++; }
 
-static void Charging_Entry(void *ctx) { (void)ctx; }
-static void Charging_Exit(void *ctx)  { (void)ctx; }
+static void Entry_Fault(void *c) { (void)c; }
+static void Exit_Fault(void *c)  { (void)c; }
+static void Do_Fault(void *c)    { (void)c; }
 
-static void Charging_Do10ms(void *ctx)
-{
-    PDU_Context_t *p = (PDU_Context_t *)ctx;
-    p->charging_10ms_count++;
-}
+static void Entry_Sleep(void *c) { (void)c; }
+static void Exit_Sleep(void *c)  { (void)c; }
+static void Do_Sleep(void *c)    { (void)c; }
 
-static void Fault_Entry(void *ctx) { (void)ctx; }
-static void Fault_Exit(void *ctx)  { (void)ctx; }
+static const FSM_DoAction_t g_initDo[] = {
+    { Do_Init, 1U }
+};
+static const FSM_DoAction_t g_standbyDo[] = {
+    { Do_Standby, 10U }
+};
+static const FSM_DoAction_t g_chargingDo[] = {
+    { Do_Charging, 1U }
+};
+static const FSM_DoAction_t g_faultDo[] = {
+    { Do_Fault, 10U }
+};
+static const FSM_DoAction_t g_sleepDo[] = {
+    { Do_Sleep, 100U }
+};
 
-static bool GuardWake(void *ctx)
-{
-    return ((PDU_Context_t *)ctx)->wake_request;
-}
+static const FSM_State_t g_states[] = {
+    { PDU_STATE_INIT,     Entry_Init,     Exit_Init,     g_initDo,     1U },
+    { PDU_STATE_STANDBY,  Entry_Standby,  Exit_Standby,  g_standbyDo,  1U },
+    { PDU_STATE_CHARGING, Entry_Charging, Exit_Charging, g_chargingDo, 1U },
+    { PDU_STATE_FAULT,    Entry_Fault,    Exit_Fault,    g_faultDo,    1U },
+    { PDU_STATE_SLEEP,    Entry_Sleep,    Exit_Sleep,    g_sleepDo,    1U }
+};
 
-static bool GuardCharge(void *ctx)
-{
-    return ((PDU_Context_t *)ctx)->charge_request;
-}
+/* Conditions contain decisions only; side effects belong to Entry/Exit/Do. */
+static bool Cond_InitDone(void *c)     { return ((PDU_FSM_Context_t *)c)->initDone; }
+static bool Cond_Fault(void *c)        { return ((PDU_FSM_Context_t *)c)->fault; }
+static bool Cond_ChargeRequest(void *c){ return ((PDU_FSM_Context_t *)c)->chargeRequest; }
+static bool Cond_SleepRequest(void *c) { return ((PDU_FSM_Context_t *)c)->sleepRequest; }
+static bool Cond_ChargeStop(void *c)   { return ((PDU_FSM_Context_t *)c)->chargeStop; }
+static bool Cond_FaultClear(void *c)   { return ((PDU_FSM_Context_t *)c)->faultClear; }
+static bool Cond_BmsTimeout(void *c)   { return ((PDU_FSM_Context_t *)c)->bmsTimeout; }
 
-static bool GuardStop(void *ctx)
-{
-    return ((PDU_Context_t *)ctx)->stop_request;
-}
+/*
+ * Global transition table.
+ * Order is priority for transitions from the same current state.
+ */
+static const FSM_Transition_t g_transitions[] = {
+    { PDU_STATE_INIT,     PDU_STATE_STANDBY,  Cond_InitDone },
 
-static bool GuardFault(void *ctx)
-{
-    return ((PDU_Context_t *)ctx)->fault_active;
-}
+    { PDU_STATE_STANDBY,  PDU_STATE_FAULT,    Cond_Fault },
+    { PDU_STATE_STANDBY,  PDU_STATE_CHARGING, Cond_ChargeRequest },
+    { PDU_STATE_STANDBY,  PDU_STATE_SLEEP,    Cond_SleepRequest },
+
+    { PDU_STATE_CHARGING, PDU_STATE_FAULT,    Cond_Fault },
+    { PDU_STATE_CHARGING, PDU_STATE_STANDBY,  Cond_ChargeStop },
+    { PDU_STATE_CHARGING, PDU_STATE_FAULT,    Cond_BmsTimeout },
+
+    { PDU_STATE_FAULT,    PDU_STATE_STANDBY,  Cond_FaultClear }
+};
 
 void PDU_FSM_Init(void)
 {
-    FSM_Init(&g_fsm, &g_ctx);
+    g_ctx = (PDU_FSM_Context_t){0};
 
-    FSM_RegisterState(&g_fsm, PDU_ST_INIT,
-                      Init_Entry, Init_Exit, 0U);
+    (void)FSM_Init(&g_fsm,
+                   g_states, (uint16_t)(sizeof(g_states)/sizeof(g_states[0])),
+                   g_transitions, (uint16_t)(sizeof(g_transitions)/sizeof(g_transitions[0])),
+                   &g_ctx);
 
-    FSM_RegisterState(&g_fsm, PDU_ST_SLEEP,
-                      Sleep_Entry, Sleep_Exit, 0U);
-
-    FSM_RegisterState(&g_fsm, PDU_ST_STANDBY,
-                      Standby_Entry, Standby_Exit, 0U);
-
-    FSM_RegisterState(&g_fsm, PDU_ST_CHARGING,
-                      Charging_Entry, Charging_Exit, 0U);
-
-    FSM_RegisterState(&g_fsm, PDU_ST_FAULT,
-                      Fault_Entry, Fault_Exit, 0U);
-
-    FSM_RegisterDoAction(&g_fsm, PDU_ST_CHARGING,
-                         Charging_Do10ms, 10U,
-                         FSM_ACTION_PERIODIC);
-
-    /* Event is NONE => guard-only transition */
-    FSM_RegisterTransition(&g_fsm, PDU_ST_INIT,
-                           PDU_ST_SLEEP, FSM_EVENT_NONE,
-                           GuardWake, (FSM_TransitionActionFunc)0, 10U);
-
-    FSM_RegisterTransition(&g_fsm, PDU_ST_SLEEP,
-                           PDU_ST_STANDBY, FSM_EVENT_NONE,
-                           GuardWake, (FSM_TransitionActionFunc)0, 10U);
-
-    FSM_RegisterTransition(&g_fsm, PDU_ST_STANDBY,
-                           PDU_ST_FAULT, FSM_EVENT_NONE,
-                           GuardFault, (FSM_TransitionActionFunc)0, 0U);
-
-    FSM_RegisterTransition(&g_fsm, PDU_ST_STANDBY,
-                           PDU_ST_CHARGING, FSM_EVENT_NONE,
-                           GuardCharge, (FSM_TransitionActionFunc)0, 10U);
-
-    FSM_RegisterTransition(&g_fsm, PDU_ST_CHARGING,
-                           PDU_ST_FAULT, FSM_EVENT_NONE,
-                           GuardFault, (FSM_TransitionActionFunc)0, 0U);
-
-    FSM_RegisterTransition(&g_fsm, PDU_ST_CHARGING,
-                           PDU_ST_STANDBY, FSM_EVENT_NONE,
-                           GuardStop, (FSM_TransitionActionFunc)0, 10U);
-
-    FSM_RegisterTransition(&g_fsm, PDU_ST_STANDBY,
-                           PDU_ST_SLEEP, FSM_EVENT_NONE,
-                           GuardStop, (FSM_TransitionActionFunc)0, 20U);
-
-    FSM_RegisterTransition(&g_fsm, PDU_ST_FAULT,
-                           PDU_ST_STANDBY, FSM_EVENT_NONE,
-                           GuardStop, (FSM_TransitionActionFunc)0, 10U);
-
-    FSM_SetInitialState(&g_fsm, PDU_ST_INIT);
+    (void)FSM_SetInitialState(&g_fsm, PDU_STATE_INIT);
 }
 
-void PDU_FSM_1msTask(void)
-{
-    FSM_Tick(&g_fsm, 1U);
-}
-
-void PDU_FSM_10msTask(void)
+void PDU_FSM_Run(void)
 {
     FSM_Run(&g_fsm);
 }
 
-FSM_t *PDU_FSM_Get(void)
+FSM_StateId_t PDU_FSM_GetState(void)
 {
-    return &g_fsm;
-}
-
-PDU_Context_t *PDU_GetContext(void)
-{
-    return &g_ctx;
+    return FSM_GetCurrentStateId(&g_fsm);
 }

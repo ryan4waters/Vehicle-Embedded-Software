@@ -1,36 +1,93 @@
-# FSM Base Package
+# FSM Base Package V2
 
-面向嵌入式/车载软件的注册式、函数指针驱动有限状态机基础组件。
+面向 TC377 / TI F29P32 / SPC58NN 等 MCU 的通用嵌入式 FSM 基础包。
 
-## 核心特性
-- 状态、迁移、Guard、Entry/Exit/DoAction 均可注册
-- 当前状态通过指针保存，不使用 switch-case 轮询状态
-- Transition 支持优先级
-- 支持 Event + Guard
-- 支持周期 DoAction（1ms/10ms/100ms 等）
-- 支持状态超时
-- 支持状态进入次数、运行时间、迁移计数等诊断信息
-- 支持多个 FSM 实例
-- Core 不依赖 MCU；可直接用于 TC377/F29P32/SPC58NN 上层应用
-- 时间基准通过 FSM_Tick() 注入，不绑定具体定时器
+## 核心架构
 
-## 推荐运行方式
-1. 初始化应用 context
-2. FSM_Init()
-3. RegisterState()
-4. RegisterTransition()
-5. SetInitialState()
-6. 周期任务中调用 FSM_Run()
-7. 中断/底层事件中可调用 FSM_PostEvent()
+- `static const` State Table
+- `static const` Transition Table
+- 一个 Transition 只保留一个 `condition`
+- Transition Table 数组顺序就是优先级
+- State 生命周期固定为 `Entry -> Do -> Exit`
+- Transition 生命周期固定为 `Exit -> currentState更新 -> Entry`
+- 不使用 Event / Guard / TransitionAction / Timeout
+- Timer、CAN、GPIO、ADC、BMS、KL15 等均属于应用/服务层
+- 不使用动态内存
+- FSM Core 不依赖任何 MCU SDK
+
+## Transition
+
+```c
+typedef struct {
+    FSM_StateId_t currentState;
+    FSM_StateId_t targetState;
+    FSM_ConditionFunc condition;
+} FSM_Transition_t;
+```
+
+例如：
+
+```c
+static const FSM_Transition_t g_TransitionTable[] =
+{
+    { STATE_INIT,     STATE_STANDBY,  Cond_InitDone },
+    { STATE_STANDBY,  STATE_FAULT,    Cond_Fault },
+    { STATE_STANDBY,  STATE_CHARGING, Cond_ChargeRequest },
+    { STATE_CHARGING, STATE_FAULT,    Cond_Fault },
+};
+```
+
+同一 CurrentState 下，第一条返回 `true` 的 Transition 生效。
+
+## Timeout
+
+Timeout 不属于 FSM Core。
+
+```c
+static bool Cond_BmsTimeout(void *context)
+{
+    AppContext_t *ctx = context;
+    return Timer_IsExpired(ctx->bmsTimer);
+}
+```
+
+然后直接配置：
+
+```c
+{ STATE_WAIT_BMS, STATE_FAULT, Cond_BmsTimeout }
+```
+
+## DoAction
+
+`periodMs` 是调度元数据。FSM Core 不维护定时器。
+
+实际 1ms / 10ms / 100ms 调度由 RTOS、GPT、STM、GTM、DMT、应用 Scheduler 等外部机制负责。
+
+## Transition 生命周期
+
+```text
+Current.ExitAction()
+        |
+        v
+currentState = Target
+        |
+        v
+Target.EntryAction()
+```
+
+一次 `FSM_Run()` 最多发生一次状态跳转。
 
 ## 目录
-- include/FSM_Core.h       公共接口
-- include/FSM_Config.h     编译期配置
-- src/FSM_Core.c           核心实现
-- example/PDU_FSM_Example.h
-- example/PDU_FSM_Example.c 示例：PDU 风格状态机
-- example/main.c            伪任务入口
 
-## 注意
-注册接口默认适合初始化阶段使用；建议初始化完成后不再修改状态/迁移表。
-代码避免在“根据具体状态选择行为”的主体逻辑中使用 switch-case/if-else，行为由函数指针和注册表驱动。
+```text
+FSM_Base_Package_V2/
+├── include/FSM_Core.h
+├── src/FSM_Core.c
+├── example/PDU_FSM_Example.h
+├── example/PDU_FSM_Example.c
+├── example/main.c
+├── docs/FSM_Design.md
+├── docs/FSM_API.md
+├── README.md
+└── CMakeLists.txt
+```
