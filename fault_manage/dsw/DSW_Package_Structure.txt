@@ -1,0 +1,28 @@
+DSW_FaultTree_Package/
+|
++-- DSW_Fault.h/.c       Fault Word bit operations
++-- DSW_Node.h/.c        Node/tree relationship and node aggregation
++-- DSW_Tree.h/.c        Public report/clear/query APIs and fault rules
++-- DSW_Config.h/.c      Example Root/Power/IMU HSW/IMU ASW configuration
++-- DSW_Test.c            Host-side unit test
++-- README.md             Integration and build notes
+
+Fault path:
+Root
+ |
+ +-- Power
+ |    |
+ |    +-- IMU_HSW
+ |         |
+ |         +-- IMU_ASW
+ |
+ +-- CAN
+ |
+ +-- Sensor
+
+FW:
+Power -> 12V_UV
+IMU_HSW -> SPI / RESET / TIMEOUT
+IMU_ASW -> DATA_INVALID
+CAN -> BUS_OFF
+ADC_HSW -> REFERENCE
